@@ -94,9 +94,9 @@ def main():
     documents = load_file(args.documents_file)
     answers = load_file(args.answers_file)
 
-    # Split data into train and validation sets
-    train_queries, val_queries, train_docs, val_docs, train_answers, val_answers = train_test_split(
-        queries, documents, answers, test_size=0.2, random_state=42
+    # Split queries and answers into train and validation sets
+    train_queries, val_queries, train_answers, val_answers = train_test_split(
+        queries, answers, test_size=0.2, random_state=42
     )
 
     # Load tokenizer and model
@@ -105,9 +105,9 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Create datasets and data loaders
-    train_dataset = LegalDataset(train_queries, train_docs, train_answers, tokenizer)
-    val_dataset = LegalDataset(val_queries, val_docs, val_answers, tokenizer)
+    # Create datasets and data loaders (pass full documents list to both)
+    train_dataset = LegalDataset(train_queries, documents, train_answers, tokenizer)
+    val_dataset = LegalDataset(val_queries, documents, val_answers, tokenizer)
     train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False)
 
@@ -169,11 +169,11 @@ def main():
     scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
     model.eval()
     with torch.no_grad():
-        for query, document, answer in zip(val_queries, val_docs, val_answers):
+        for query, answer in zip(val_queries, val_answers):
             tokenized_query = query.split()
             doc_scores = train_dataset.bm25.get_scores(tokenized_query)
             top_doc_indices = np.argsort(doc_scores)[::-1][:train_dataset.top_k]
-            top_docs = [train_docs[i] for i in top_doc_indices]
+            top_docs = [documents[i] for i in top_doc_indices]
             document = " ".join(top_docs)
             input_text = f"<context>{document}</context><query>{query}</query>"
             inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True, padding="max_length")
